@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dump Truck GPS Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1d23;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #0f1117;
+      border-bottom: 1px solid #2d3748;
+      padding: 0 1.25rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #f7fafc;
+    }
+    header .badge {
+      font-size: 0.7rem;
+      background: #2d6a4f;
+      color: #74c69d;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+    }
+
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 280px;
+      background: #0f1117;
+      border-right: 1px solid #2d3748;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .section {
+      padding: 1rem;
+      border-bottom: 1px solid #2d3748;
+    }
+    .section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #718096;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #2d3748;
+      border-radius: 8px;
+      padding: 1.25rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #718096;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    .drop-zone:hover, .drop-zone.dragging {
+      border-color: #4299e1;
+      color: #90cdf4;
+      background: rgba(66,153,225,0.05);
+    }
+    .drop-zone .icon { font-size: 1.5rem; margin-bottom: 0.3rem; }
+
+    input[type="file"] { display: none; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-primary {
+      background: #2b6cb0;
+      color: #bee3f8;
+    }
+    .btn-primary:hover { background: #2c5282; }
+    .btn-secondary {
+      background: #2d3748;
+      color: #a0aec0;
+      margin-top: 0.5rem;
+    }
+    .btn-secondary:hover { background: #4a5568; color: #e2e8f0; }
+
+    /* Controls */
+    label { font-size: 0.8rem; color: #a0aec0; display: block; margin-bottom: 0.3rem; }
+
+    select, input[type="range"] {
+      width: 100%;
+      background: #1a202c;
+      border: 1px solid #2d3748;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 0.4rem 0.5rem;
+      font-size: 0.8rem;
+      outline: none;
+      margin-bottom: 0.75rem;
+    }
+    select:focus { border-color: #4299e1; }
+
+    input[type="range"] {
+      padding: 0;
+      height: 4px;
+      appearance: none;
+      border: none;
+      background: #2d3748;
+      border-radius: 2px;
+      cursor: pointer;
+      margin-top: 0.25rem;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: #4299e1;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .range-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.25rem;
+    }
+    .range-row span { font-size: 0.75rem; color: #e2e8f0; font-weight: 600; }
+
+    /* Toggles */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .toggle-row input[type="checkbox"] { accent-color: #4299e1; width: 14px; height: 14px; }
+    .toggle-row label {
+      margin: 0;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .swatch {
+      width: 28px;
+      height: 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Stats */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+    }
+    .stat {
+      background: #1a202c;
+      border-radius: 6px;
+      padding: 0.6rem 0.75rem;
+    }
+    .stat .label { font-size: 0.65rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 1rem; font-weight: 700; color: #f7fafc; margin-top: 2px; }
+    .stat .value.raw    { color: #fc8181; }
+    .stat .value.smooth { color: #68d391; }
+
+    .empty-state {
+      padding: 1rem;
+      text-align: center;
+      color: #4a5568;
+      font-size: 0.8rem;
+    }
+
+    /* ── Map ── */
+    #map {
+      flex: 1;
+      background: #0d1117;
+    }
+
+    /* Legend */
+    .leaflet-legend {
+      background: rgba(15,17,23,0.92);
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: #a0aec0;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.3rem;
+    }
+    .legend-row:last-child { margin-bottom: 0; }
+    .legend-line {
+      width: 24px;
+      height: 3px;
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dump Truck GPS Tracker</h1>
+    <span class="badge">GPS Smoothing</span>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+
+      <!-- Data Load -->
+      <div class="section">
+        <div class="section-title">Data Source</div>
+        <div class="drop-zone" id="dropZone">
+          <div class="icon">📂</div>
+          Drop CSV file here<br/>or click to browse
+        </div>
+        <input type="file" id="fileInput" accept=".csv" />
+        <button class="btn btn-secondary" id="sampleBtn">Load Sample Data</button>
+        <div id="fileName" style="font-size:0.72rem;color:#4a5568;margin-top:0.4rem;text-align:center;"></div>
+      </div>
+
+      <!-- Smoothing Controls -->
+      <div class="section">
+        <div class="section-title">Smoothing</div>
+
+        <label for="algorithm">Algorithm</label>
+        <select id="algorithm">
+          <option value="moving_avg">Moving Average</option>
+          <option value="gaussian" selected>Gaussian Weighted</option>
+          <option value="median">Median Filter</option>
+        </select>
+
+        <div class="range-row">
+          <label for="windowSize" style="margin:0;">Window Size</label>
+          <span id="windowVal">11</span>
+        </div>
+        <input type="range" id="windowSize" min="3" max="31" step="2" value="11" />
+      </div>
+
+      <!-- Visibility -->
+      <div class="section">
+        <div class="section-title">Visibility</div>
+        <div class="toggle-row">
+          <input type="checkbox" id="showRaw" checked />
+          <label for="showRaw">
+            <span class="swatch" style="background:#fc8181;"></span>
+            Raw GPS path
+          </label>
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="showSmoothed" checked />
+          <label for="showSmoothed">
+            <span class="swatch" style="background:#68d391;"></span>
+            Smoothed path
+          </label>
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="showMarkers" checked />
+          <label for="showMarkers">
+            <span class="swatch" style="background:#f6e05e;border-radius:50%;height:10px;width:10px;"></span>
+            Zone markers
+          </label>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="section">
+        <div class="section-title">Statistics</div>
+        <div id="statsEmpty" class="empty-state">No data loaded</div>
+        <div id="statsGrid" class="stat-grid" style="display:none;">
+          <div class="stat">
+            <div class="label">Points</div>
+            <div class="value" id="statPoints">—</div>
+          </div>
+          <div class="stat">
+            <div class="label">Duration</div>
+            <div class="value" id="statDuration">—</div>
+          </div>
+          <div class="stat">
+            <div class="label">Raw Distance</div>
+            <div class="value raw" id="statRawDist">—</div>
+          </div>
+          <div class="stat">
+            <div class="label">Smooth Distance</div>
+            <div class="value smooth" id="statSmDist">—</div>
+          </div>
+          <div class="stat" style="grid-column:1/-1;">
+            <div class="label">Noise Reduction</div>
+            <div class="value smooth" id="statNoise">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CSV Format help -->
+      <div class="section" style="border-bottom:none;">
+        <div class="section-title">CSV Format</div>
+        <div style="font-size:0.72rem;color:#4a5568;line-height:1.7;font-family:monospace;">
+          Required columns:<br/>
+          <span style="color:#68d391;">lat</span> / <span style="color:#68d391;">latitude</span><br/>
+          <span style="color:#68d391;">lng</span> / <span style="color:#68d391;">lon</span> / <span style="color:#68d391;">longitude</span><br/>
+          Optional:<br/>
+          <span style="color:#a0aec0;">timestamp, speed</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <div id="map"></div>
+  </div>
+
+  <script>
+  // ─── Map setup ────────────────────────────────────────────────────────────
+  const map = L.map('map', {
+    center: [0, 0],
+    zoom: 2,
+    zoomControl: true,
+  });
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    maxZoom: 20,
+  }).addTo(map);
+
+  // Legend
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create('div', 'leaflet-legend');
+    div.innerHTML = `
+      <div class="legend-row"><div class="legend-line" style="background:#fc8181;opacity:0.7;"></div> Raw GPS</div>
+      <div class="legend-row"><div class="legend-line" style="background:#68d391;"></div> Smoothed</div>
+      <div class="legend-row"><div style="width:10px;height:10px;background:#68d391;border-radius:50%;"></div> Load zone</div>
+      <div class="legend-row"><div style="width:10px;height:10px;background:#f6ad55;border-radius:50%;"></div> Dump zone</div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+
+  // ─── State ────────────────────────────────────────────────────────────────
+  let rawPoints = [];      // [{lat, lng, ts}]
+  let smoothedPoints = []; // [{lat, lng, ts}]
+  let layerRaw = null;
+  let layerSmoothed = null;
+  let layerMarkers = L.layerGroup().addTo(map);
+
+  // ─── Smoothing algorithms ─────────────────────────────────────────────────
+  function smoothMovingAverage(pts, w) {
+    const half = Math.floor(w / 2);
+    return pts.map((p, i) => {
+      const s = Math.max(0, i - half);
+      const e = Math.min(pts.length - 1, i + half);
+      let sLat = 0, sLng = 0, n = 0;
+      for (let j = s; j <= e; j++) { sLat += pts[j].lat; sLng += pts[j].lng; n++; }
+      return { ...p, lat: sLat / n, lng: sLng / n };
+    });
+  }
+
+  function smoothGaussian(pts, w) {
+    const half = Math.floor(w / 2);
+    const sigma = w / 6;
+    const gauss = i => Math.exp(-(i * i) / (2 * sigma * sigma));
+    const weights = Array.from({ length: w }, (_, k) => gauss(k - half));
+    return pts.map((p, i) => {
+      let sLat = 0, sLng = 0, sw = 0;
+      weights.forEach((wt, k) => {
+        const j = i - half + k;
+        if (j >= 0 && j < pts.length) {
+          sLat += pts[j].lat * wt; sLng += pts[j].lng * wt; sw += wt;
+        }
+      });
+      return { ...p, lat: sLat / sw, lng: sLng / sw };
+    });
+  }
+
+  function smoothMedian(pts, w) {
+    const half = Math.floor(w / 2);
+    const med = arr => { const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+    return pts.map((p, i) => {
+      const s = Math.max(0, i - half);
+      const e = Math.min(pts.length - 1, i + half);
+      const window = pts.slice(s, e + 1);
+      return { ...p, lat: med(window.map(x => x.lat)), lng: med(window.map(x => x.lng)) };
+    });
+  }
+
+  function applySmoothing(pts, algorithm, windowSize) {
+    if (pts.length === 0) return [];
+    switch (algorithm) {
+      case 'gaussian':   return smoothGaussian(pts, windowSize);
+      case 'median':     return smoothMedian(pts, windowSize);
+      default:           return smoothMovingAverage(pts, windowSize);
+    }
+  }
+
+  // ─── Distance ─────────────────────────────────────────────────────────────
+  function haversine(p1, p2) {
+    const R = 6371000;
+    const dLat = (p2.lat - p1.lat) * Math.PI / 180;
+    const dLng = (p2.lng - p1.lng) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 +
+      Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function totalDistance(pts) {
+    let d = 0;
+    for (let i = 1; i < pts.length; i++) d += haversine(pts[i - 1], pts[i]);
+    return d;
+  }
+
+  // ─── Zone detection ───────────────────────────────────────────────────────
+  // Segments where avg speed < threshold are load/dump zones
+  function detectZones(pts, speedThresholdKmh = 6, minCluster = 15) {
+    // Estimate speed from position delta if no speed field
+    const zones = [];
+    let inZone = false;
+    let zoneStart = 0;
+
+    const speeds = pts.map((p, i) => {
+      if (i === 0) return 0;
+      const dt = (p.ts - pts[i - 1].ts) / 1000; // seconds
+      if (dt <= 0) return p.speed ?? 0;
+      const d = haversine(pts[i - 1], p);
+      return (d / dt) * 3.6; // km/h
+    });
+
+    for (let i = 0; i < pts.length; i++) {
+      const spd = pts[i].speed !== undefined ? pts[i].speed : speeds[i];
+      if (!inZone && spd < speedThresholdKmh) {
+        inZone = true;
+        zoneStart = i;
+      } else if (inZone && spd >= speedThresholdKmh) {
+        inZone = false;
+        if (i - zoneStart >= minCluster) zones.push({ start: zoneStart, end: i - 1 });
+      }
+    }
+    if (inZone && pts.length - zoneStart >= minCluster) zones.push({ start: zoneStart, end: pts.length - 1 });
+    return zones;
+  }
+
+  function centroid(pts, start, end) {
+    const slice = pts.slice(start, end + 1);
+    return {
+      lat: slice.reduce((s, p) => s + p.lat, 0) / slice.length,
+      lng: slice.reduce((s, p) => s + p.lng, 0) / slice.length,
+    };
+  }
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+  function render() {
+    // Remove old layers
+    if (layerRaw)      { map.removeLayer(layerRaw); layerRaw = null; }
+    if (layerSmoothed) { map.removeLayer(layerSmoothed); layerSmoothed = null; }
+    layerMarkers.clearLayers();
+
+    if (rawPoints.length === 0) return;
+
+    const showRaw      = document.getElementById('showRaw').checked;
+    const showSmoothed = document.getElementById('showSmoothed').checked;
+    const showMarkers  = document.getElementById('showMarkers').checked;
+
+    const rawLatLngs = rawPoints.map(p => [p.lat, p.lng]);
+    const smLatLngs  = smoothedPoints.map(p => [p.lat, p.lng]);
+
+    if (showRaw) {
+      layerRaw = L.polyline(rawLatLngs, {
+        color: '#fc8181', weight: 2, opacity: 0.55,
+      }).addTo(map);
+    }
+
+    if (showSmoothed) {
+      layerSmoothed = L.polyline(smLatLngs, {
+        color: '#68d391', weight: 3, opacity: 0.9,
+      }).addTo(map);
+    }
+
+    // Start / end markers
+    const startIcon = L.divIcon({
+      html: '<div style="width:12px;height:12px;background:#68d391;border:2px solid #fff;border-radius:50%;"></div>',
+      iconSize: [12, 12], className: ''
+    });
+    const endIcon = L.divIcon({
+      html: '<div style="width:12px;height:12px;background:#fc8181;border:2px solid #fff;border-radius:50%;"></div>',
+      iconSize: [12, 12], className: ''
+    });
+
+    if (showMarkers) {
+      L.marker(rawLatLngs[0], { icon: startIcon }).bindPopup('Start').addTo(layerMarkers);
+      L.marker(rawLatLngs[rawLatLngs.length - 1], { icon: endIcon }).bindPopup('End').addTo(layerMarkers);
+
+      // Load / dump zone markers
+      const zones = detectZones(rawPoints);
+      const zoneColors = ['#68d391', '#f6ad55', '#68d391', '#f6ad55', '#68d391', '#f6ad55'];
+      const zoneLabels = ['Load Zone', 'Dump Zone', 'Load Zone', 'Dump Zone', 'Load Zone', 'Dump Zone'];
+      zones.forEach((z, idx) => {
+        const c = centroid(rawPoints, z.start, z.end);
+        const color = zoneColors[idx % zoneColors.length];
+        const label = zoneLabels[idx % zoneLabels.length];
+        const icon = L.divIcon({
+          html: `<div style="width:16px;height:16px;background:${color};border:2px solid #fff;border-radius:50%;opacity:0.9;"></div>`,
+          iconSize: [16, 16], className: ''
+        });
+        L.marker([c.lat, c.lng], { icon })
+          .bindPopup(`<b>${label}</b><br/>${z.end - z.start + 1} points`)
+          .addTo(layerMarkers);
+      });
+    }
+
+    // Fit map
+    map.fitBounds(L.latLngBounds(rawLatLngs), { padding: [40, 40] });
+
+    updateStats();
+  }
+
+  function updateStats() {
+    if (rawPoints.length === 0) {
+      document.getElementById('statsEmpty').style.display = '';
+      document.getElementById('statsGrid').style.display = 'none';
+      return;
+    }
+    document.getElementById('statsEmpty').style.display = 'none';
+    document.getElementById('statsGrid').style.display = '';
+
+    document.getElementById('statPoints').textContent = rawPoints.length.toLocaleString();
+
+    // Duration
+    const tsFirst = rawPoints[0].ts, tsLast = rawPoints[rawPoints.length - 1].ts;
+    if (tsFirst && tsLast && tsLast > tsFirst) {
+      const mins = Math.round((tsLast - tsFirst) / 60000);
+      document.getElementById('statDuration').textContent = mins >= 60
+        ? `${Math.floor(mins / 60)}h ${mins % 60}m`
+        : `${mins}m`;
+    } else {
+      document.getElementById('statDuration').textContent = '—';
+    }
+
+    const dRaw = totalDistance(rawPoints);
+    const dSm  = totalDistance(smoothedPoints);
+    const fmt  = m => m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${Math.round(m)} m`;
+
+    document.getElementById('statRawDist').textContent = fmt(dRaw);
+    document.getElementById('statSmDist').textContent  = fmt(dSm);
+
+    const diff = dRaw > 0 ? ((dRaw - dSm) / dRaw * 100).toFixed(1) : '0';
+    document.getElementById('statNoise').textContent = `${diff}% path noise removed`;
+  }
+
+  // ─── CSV parsing ──────────────────────────────────────────────────────────
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) throw new Error('CSV has no data rows');
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
+    const find = (...names) => headers.findIndex(h => names.includes(h));
+
+    const iLat  = find('lat', 'latitude');
+    const iLng  = find('lng', 'lon', 'longitude');
+    const iTs   = find('timestamp', 'time', 'datetime', 'date');
+    const iSpd  = find('speed', 'speed_kmh', 'speed_mph', 'velocity');
+
+    if (iLat === -1 || iLng === -1)
+      throw new Error(`Could not find lat/lng columns. Found: ${headers.join(', ')}`);
+
+    const points = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      const lat = parseFloat(cols[iLat]);
+      const lng = parseFloat(cols[iLng]);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      const ts = iTs !== -1 ? new Date(cols[iTs]).getTime() : i * 5000;
+      const speed = iSpd !== -1 ? parseFloat(cols[iSpd]) : undefined;
+      points.push({ lat, lng, ts: isNaN(ts) ? i * 5000 : ts, speed });
+    }
+    if (points.length === 0) throw new Error('No valid GPS points found in CSV');
+    return points;
+  }
+
+  // ─── Sample data generator ────────────────────────────────────────────────
+  function generateSampleData() {
+    // Fictional mine haul: load zone → haul road → dump zone (3 cycles)
+    const loadZone  = [-27.5012, 151.0003];
+    const dumpZone  = [-27.4798, 151.0312];
+    const hauRoad = [
+      [-27.5012, 151.0003],
+      [-27.4990, 151.0045],
+      [-27.4965, 151.0090],
+      [-27.4940, 151.0135],
+      [-27.4915, 151.0180],
+      [-27.4890, 151.0224],
+      [-27.4863, 151.0268],
+      [-27.4835, 151.0298],
+      [-27.4798, 151.0312],
+    ];
+
+    const pts = [];
+    // Simple LCG for reproducible pseudo-random
+    let seed = 42;
+    const rand = () => { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 0xffffffff; };
+    const noise = (v, mag) => v + (rand() - 0.5) * 2 * mag;
+    const lerp  = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+
+    let t = new Date('2024-03-15T07:00:00Z').getTime();
+    const step = (dt, lat, lng, spd) => { pts.push({ lat, lng, ts: t, speed: spd }); t += dt * 1000; };
+
+    for (let cycle = 0; cycle < 3; cycle++) {
+      // Loading zone — lots of noise (maneuvering, loading)
+      for (let i = 0; i < 50; i++)
+        step(5, noise(loadZone[0], 0.00035), noise(loadZone[1], 0.00035), rand() * 6);
+
+      // Haul (loaded) — gentle noise
+      for (let seg = 0; seg < hauRoad.length - 1; seg++) {
+        for (let frac = 0; frac <= 1; frac += 0.1) {
+          const [la, lo] = lerp(hauRoad[seg], hauRoad[seg + 1], frac);
+          step(3, noise(la, 0.000075), noise(lo, 0.000075), 22 + rand() * 18);
+        }
+      }
+
+      // Dump zone — lots of noise (positioning, dumping)
+      for (let i = 0; i < 45; i++)
+        step(5, noise(dumpZone[0], 0.00035), noise(dumpZone[1], 0.00035), rand() * 7);
+
+      // Return (empty) — slightly faster, different line
+      for (let seg = hauRoad.length - 1; seg > 0; seg--) {
+        for (let frac = 0; frac <= 1; frac += 0.1) {
+          const [la, lo] = lerp(hauRoad[seg], hauRoad[seg - 1], frac);
+          step(2.5, noise(la + 0.00015, 0.000075), noise(lo - 0.00015, 0.000075), 30 + rand() * 20);
+        }
+      }
+    }
+    return pts;
+  }
+
+  // ─── Load data ────────────────────────────────────────────────────────────
+  function loadPoints(points, name) {
+    rawPoints = points;
+    const algo = document.getElementById('algorithm').value;
+    const w    = parseInt(document.getElementById('windowSize').value);
+    smoothedPoints = applySmoothing(rawPoints, algo, w);
+    document.getElementById('fileName').textContent = name;
+    render();
+  }
+
+  function reSmooth() {
+    if (rawPoints.length === 0) return;
+    const algo = document.getElementById('algorithm').value;
+    const w    = parseInt(document.getElementById('windowSize').value);
+    smoothedPoints = applySmoothing(rawPoints, algo, w);
+    render();
+  }
+
+  // ─── CSV export ───────────────────────────────────────────────────────────
+  // (Bonus: users can download the smoothed CSV)
+
+  // ─── Event listeners ──────────────────────────────────────────────────────
+  const dropZone  = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragging');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) readFile(e.target.files[0]);
+  });
+
+  function readFile(file) {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const pts = parseCSV(ev.target.result);
+        loadPoints(pts, file.name);
+      } catch (err) {
+        alert('Error parsing CSV:\n' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  document.getElementById('sampleBtn').addEventListener('click', () => {
+    loadPoints(generateSampleData(), 'sample_truck_data.csv');
+  });
+
+  document.getElementById('algorithm').addEventListener('change', reSmooth);
+
+  const windowSlider = document.getElementById('windowSize');
+  const windowVal    = document.getElementById('windowVal');
+  windowSlider.addEventListener('input', () => {
+    windowVal.textContent = windowSlider.value;
+    reSmooth();
+  });
+
+  document.getElementById('showRaw').addEventListener('change', render);
+  document.getElementById('showSmoothed').addEventListener('change', render);
+  document.getElementById('showMarkers').addEventListener('change', render);
+
+  // ─── Auto-load sample on start ────────────────────────────────────────────
+  loadPoints(generateSampleData(), 'sample_truck_data.csv (demo)');
+  </script>
+</body>
+</html>
