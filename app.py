@@ -316,8 +316,6 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Visibility")
-    show_raw     = st.checkbox("Raw GPS path",  value=True)
-    show_smooth  = st.checkbox("Smoothed path", value=True)
     show_markers = st.checkbox("Zone markers",  value=True)
 
 
@@ -353,7 +351,7 @@ st.caption(
 )
 
 # Map
-m = build_map(df, smooth_df, show_raw, show_smooth, show_markers)
+m = build_map(df, smooth_df, True, True, show_markers)
 st_folium(m, use_container_width=True, height=560, returned_objects=[])
 
 # Stats row
