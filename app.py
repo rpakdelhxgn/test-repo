@@ -316,8 +316,6 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Visibility")
-    show_raw     = st.checkbox("Raw GPS path",  value=True)
-    show_smooth  = st.checkbox("Smoothed path", value=True)
     show_markers = st.checkbox("Zone markers",  value=True)
 
 
@@ -353,7 +351,7 @@ st.caption(
 )
 
 # Map
-m = build_map(df, smooth_df, show_raw, show_smooth, show_markers)
+m = build_map(df, smooth_df, True, True, show_markers)
 st_folium(m, use_container_width=True, height=560, returned_objects=[])
 
 # Stats row
@@ -368,27 +366,3 @@ c3.metric("Raw Distance",    fmt_dist(d_raw))
 c4.metric("Smooth Distance", fmt_dist(d_sm))
 c5.metric("Noise Removed",   f"{noise_pct:.1f}%",
           help="Reduction in total path length after smoothing")
-
-# GPS coordinates table
-st.subheader("GPS Coordinates")
-
-coord_df = pd.DataFrame({
-    "timestamp":        df["timestamp"] if "timestamp" in df.columns else range(len(df)),
-    "raw_lat":          df["lat"].round(6),
-    "raw_lng":          df["lng"].round(6),
-    "smoothed_lat":     smooth_df["lat"].round(6),
-    "smoothed_lng":     smooth_df["lng"].round(6),
-    "lat_delta":        (smooth_df["lat"] - df["lat"]).round(6),
-    "lng_delta":        (smooth_df["lng"] - df["lng"]).round(6),
-})
-
-def highlight_raw(s):
-    return ["color: #fc8181" if s.name in ("raw_lat", "raw_lng") else
-            "color: #68d391" if s.name in ("smoothed_lat", "smoothed_lng") else
-            "" for _ in s]
-
-st.dataframe(
-    coord_df.style.apply(highlight_raw),
-    use_container_width=True,
-    height=300,
-)
