@@ -1,0 +1,93 @@
+name: CI
+
+# Runs on every PR targeting main, and on direct pushes to main.
+# Streamlit Cloud watches the main branch and redeploys automatically
+# after each merge — no extra deploy step needed here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-validate:
+    name: Lint & validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff
+
+      - name: Lint with ruff
+        run: ruff check app.py
+
+      - name: Check syntax
+        run: python -m py_compile app.py && echo "✓ Syntax OK"
+
+      - name: Validate imports and core logic
+        run: |
+          python - <<'EOF'
+          # Run outside Streamlit context to validate imports and pure logic.
+          import sys, types
+
+          # Stub streamlit so we can import our helper functions
+          st_stub = types.ModuleType("streamlit")
+          for attr in (
+              "set_page_config", "cache_data", "cache_resource",
+              "title", "caption", "sidebar", "subheader", "divider",
+              "file_uploader", "button", "selectbox", "slider",
+              "checkbox", "columns", "metric", "markdown", "info",
+              "error", "stop", "session_state",
+          ):
+              setattr(st_stub, attr, lambda *a, **kw: None)
+          st_stub.session_state = {}
+          sys.modules["streamlit"] = st_stub
+          sys.modules["streamlit_folium"] = types.ModuleType("streamlit_folium")
+
+          import importlib, app as a
+
+          # Smoke-test the pure functions
+          df = a.generate_sample_data()
+          assert len(df) > 0, "sample data is empty"
+
+          for algo in a.ALGORITHMS:
+              smoothed = a.apply_smoothing(df, algo, window=11)
+              assert len(smoothed) == len(df), f"{algo}: length mismatch"
+
+          dist = a.haversine_total(df)
+          assert dist > 0, "distance should be positive"
+
+          zones = a.detect_zones(df)
+          assert len(zones) >= 2, f"expected ≥2 zones, got {len(zones)}"
+
+          print(f"✓ {len(df)} sample points, {len(zones)} zones detected, dist={dist/1000:.2f} km")
+          EOF
+
+  # This job runs only on main (i.e. after a PR is merged) and reminds the
+  # team that Streamlit Cloud will pick up the changes automatically.
+  deploy-notice:
+    name: Streamlit Cloud deploy
+    runs-on: ubuntu-latest
+    needs: lint-and-validate
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Confirm auto-deploy triggered
+        run: |
+          echo "✅ CI passed on main."
+          echo "Streamlit Community Cloud is watching this branch and will"
+          echo "redeploy the app automatically within ~60 seconds."
+          echo ""
+          echo "One-time setup (if not done already):"
+          echo "  1. Go to https://share.streamlit.io"
+          echo "  2. New app → connect this GitHub repo"
+          echo "  3. Branch: main | Main file: app.py"
+          echo "  4. Deploy — subsequent pushes redeploy automatically."
